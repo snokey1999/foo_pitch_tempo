@@ -18,8 +18,8 @@
 #define IDC_TIMER_ENABLE 1011
 #define IDC_TIMER_MODE 1012
 #define IDC_TIMER_CUSTOM 1013
+#define IDC_PITCH_ALGO 1014
 
 #ifndef IDC_STATIC
 #define IDC_STATIC -1
 #endif
-

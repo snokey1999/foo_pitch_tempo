@@ -32,6 +32,9 @@ static cfg_int cfg_timer_mode(guid_cfg_timer_mode, 1); // 0=15m, 1=30m, 2=60m, 3
 static const GUID guid_cfg_timer_custom = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x57 } };
 static cfg_int cfg_timer_custom(guid_cfg_timer_custom, 120);
 
+const GUID guid_cfg_pitch_algo = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x58 } };
+cfg_int cfg_pitch_algo(guid_cfg_pitch_algo, 2); // 0=极速 (Linear), 1=快速 (Quick Cubic), 2=标准 (Cubic), 3=极佳 (Shannon)
+
 static std::atomic<bool> g_timer_running{false};
 static std::atomic<time_t> g_target_quit_time{0};
 
@@ -72,6 +75,13 @@ private:
             GetDlgItem(IDC_TIMER_CUSTOM).ShowWindow((cfg_timer_mode.get_value() == 3) ? SW_SHOW : SW_HIDE);
         }
         
+        CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
+        cbAlgo.AddString(L"极速模式 (线性插值 - 极低 CPU 占用)");
+        cbAlgo.AddString(L"快速模式 (快速三次插值 - 较低 CPU 占用)");
+        cbAlgo.AddString(L"标准模式 (三次插值 - 普通品质)");
+        cbAlgo.AddString(L"极佳模式 (香农插值 - 极高品质 / 高 CPU 占用)");
+        cbAlgo.SetCurSel(cfg_pitch_algo.get_value());
+        
         return TRUE;
     }
     
@@ -102,6 +112,9 @@ private:
             CComboBox cb = GetDlgItem(IDC_TIMER_MODE);
             cfg_timer_mode = cb.GetCurSel();
             cfg_timer_custom = GetDlgItemInt(IDC_TIMER_CUSTOM, NULL, FALSE);
+            
+            CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
+            cfg_pitch_algo = cbAlgo.GetCurSel();
             
             bool enable = (IsDlgButtonChecked(IDC_TIMER_ENABLE) == BST_CHECKED);
             g_timer_running.store(enable);
@@ -347,6 +360,16 @@ public:
             console::formatter() << u8"音高偏移: " << v;
         } else if (p_index == cmd_pitch_reset) {
             ensure_dsp_active();
+            auto dcm = dsp_config_manager::get();
+            dsp_preset_impl preset;
+            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (dcm->core_query_dsp(guid_bass_dsp, preset)) {
+                float tempo = 0.0f;
+                if (preset.get_data_size() == sizeof(float) * 2) tempo = ((const float*)preset.get_data())[1];
+                float d[2] = { 0.0f, tempo };
+                preset.set_data(&d, sizeof(d));
+                dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
+            }
             g_pitch_offset.store(0.0f);
             console::print(u8"已重置音高偏移");
         } else if (p_index == cmd_tempo_up) {
@@ -361,6 +384,16 @@ public:
             console::formatter() << u8"速度偏移: " << v << "%";
         } else if (p_index == cmd_tempo_reset) {
             ensure_dsp_active();
+            auto dcm = dsp_config_manager::get();
+            dsp_preset_impl preset;
+            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (dcm->core_query_dsp(guid_bass_dsp, preset)) {
+                float pitch = 0.0f;
+                if (preset.get_data_size() == sizeof(float) * 2) pitch = ((const float*)preset.get_data())[0];
+                float d[2] = { pitch, 0.0f };
+                preset.set_data(&d, sizeof(d));
+                dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
+            }
             g_tempo_offset.store(0.0f);
             console::print(u8"已重置速度偏移");
         } else if (p_index == cmd_reverb_up) {
@@ -375,6 +408,14 @@ public:
             console::formatter() << u8"混响偏移: " << v << "%";
         } else if (p_index == cmd_reverb_reset) {
             ensure_dsp_active();
+            auto dcm = dsp_config_manager::get();
+            dsp_preset_impl preset;
+            static const GUID guid_reverb_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x30 } };
+            if (dcm->core_query_dsp(guid_reverb_dsp, preset)) {
+                float d[1] = { 30.0f };
+                preset.set_data(&d, sizeof(d));
+                dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
+            }
             g_reverb_offset.store(0.0f);
             console::print(u8"已重置混响偏移");
         } else if (p_index == cmd_global_settings) {
