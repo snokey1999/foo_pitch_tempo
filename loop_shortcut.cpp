@@ -488,6 +488,7 @@ public:
                                 t_size keep_samples = (t_size)((end - current_time) * chunk.get_sample_rate());
                                 if (keep_samples < chunk.get_sample_count()) {
                                     chunk.set_sample_count(keep_samples);
+                                    chunk_duration = (double)keep_samples / chunk.get_sample_rate();
                                 }
                             }
                             
@@ -508,8 +509,6 @@ public:
                                 }
                             }
                             chunk_list.remove_all();
-                            current_time += chunk_duration;
-                            if (current_time >= end) break;
                         }
 
                         
