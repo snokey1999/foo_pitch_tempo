@@ -6,7 +6,6 @@ Debug/
 *.iobj
 *.ipdb
 *.tlog
-*.lastbuildstate
 *.log
 *.fb2k-component
 package/
