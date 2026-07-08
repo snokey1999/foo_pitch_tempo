@@ -1,0 +1,15 @@
+Release/
+x64/
+Debug/
+.vs/
+*.pdb
+*.iobj
+*.ipdb
+*.tlog
+*.lastbuildstate
+*.log
+*.fb2k-component
+package/
+Release FB2K/
+UpgradeLog*.htm
+Backup/
