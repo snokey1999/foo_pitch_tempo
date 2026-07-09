@@ -2,7 +2,7 @@
 
 DECLARE_COMPONENT_VERSION(
 	u8"时间魔术师 (Time Wizard)",
-	"1.0",
+	"1.2.1",
 	u8"一个基于bass引擎的变速变调与loop循环组件\n"
 	"Author: snokey"
 );

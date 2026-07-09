@@ -479,10 +479,9 @@ public:
                         unsigned out_sample_rate = 0;
                         
                         audio_chunk_impl chunk;
-                        while (dec->run(chunk, abort)) {
+                        // 修正1：增加微小的误差容忍量（0.001秒），防止浮点数精度截断导致最后一块进不来
+                        while (current_time < (end - 0.001) && dec->run(chunk, abort)) {
                             double chunk_duration = (double)chunk.get_sample_count() / chunk.get_sample_rate();
-                            
-                            if (current_time >= end) break;
                             
                             if (current_time + chunk_duration > end) {
                                 t_size keep_samples = (t_size)((end - current_time) * chunk.get_sample_rate());
@@ -511,9 +510,9 @@ public:
                             chunk_list.remove_all();
                         }
 
-                        
-                        // Flush DSP tail (e.g. Reverb)
-                        my_dsp->run_abortable(&chunk_list, nullptr, dsp::END_OF_TRACK | dsp::FLUSH, abort);
+                        // 修正2：彻底移除冲突的 dsp::FLUSH 标志，仅保留 dsp::END_OF_TRACK
+                        // 这样 DSP 才会完全交出最后的缓冲数据
+                        my_dsp->run_abortable(&chunk_list, nullptr, dsp::END_OF_TRACK, abort);
                         for (t_size i = 0; i < chunk_list.get_count(); ++i) {
                             audio_chunk * out_chunk = chunk_list.get_item(i);
                             if (!out_chunk->is_empty()) {
