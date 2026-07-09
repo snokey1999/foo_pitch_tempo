@@ -11,6 +11,13 @@
 #include <time.h>
 #include <chrono>
 #include "resource.h"
+#include "tolk_wrapper.h"
+
+static void SpeakMsg(const char* utf8_text) {
+    pfc::stringcvt::string_wide_from_utf8 wstr(utf8_text);
+    TolkWrapper_Output(std::wstring(wstr.get_ptr()));
+}
+
 
 static double g_loop_start = -1.0;
 static double g_loop_end = -1.0;
@@ -64,7 +71,12 @@ public:
                 api->add(get_settings_client(), guid_pitch_tempo_index, system_time_periods::week * 52); // Retain for 1 year
             } catch (std::exception const & e) {
                 api->remove(guid_pitch_tempo_index);
-                console::formatter() << "Failed to init pitch/tempo index: " << e.what();
+                {
+                pfc::string_formatter _msg;
+                _msg << "Failed to init pitch/tempo index: " << e.what();
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
                 return;
             }
             api->dispatch_global_refresh();
@@ -107,6 +119,9 @@ static void save_current_track_settings() {
 static const GUID guid_cfg_fade_in = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x50 } };
 static cfg_int cfg_fade_in(guid_cfg_fade_in, 500);
 
+static const GUID guid_cfg_export_format = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x59 } };
+static cfg_int cfg_export_format(guid_cfg_export_format, 0); // 0=WAV, 1=MP3, 2=FLAC, 3=MP4
+
 static const GUID guid_cfg_fade_out = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x51 } };
 static cfg_int cfg_fade_out(guid_cfg_fade_out, 1000);
 
@@ -138,6 +153,13 @@ private:
     BOOL OnInitDialog(CWindow wndFocus, LPARAM lInitParam) {
         SetDlgItemInt(IDC_CFG_FADE_IN, cfg_fade_in.get_value(), FALSE);
         SetDlgItemInt(IDC_CFG_FADE_OUT, cfg_fade_out.get_value(), FALSE);
+        
+        CComboBox cbFmt = GetDlgItem(IDC_EXPORT_FORMAT);
+        cbFmt.AddString(L"WAV (无损)");
+        cbFmt.AddString(L"MP3 (有损音频)");
+        cbFmt.AddString(L"FLAC (无损音频)");
+        cbFmt.AddString(L"MP4 (带图片视频)");
+        cbFmt.SetCurSel(cfg_export_format.get_value());
         
         bool enable = g_timer_running.load();
         CheckDlgButton(IDC_TIMER_ENABLE, enable ? BST_CHECKED : BST_UNCHECKED);
@@ -193,6 +215,9 @@ private:
             cfg_fade_in = GetDlgItemInt(IDC_CFG_FADE_IN, NULL, FALSE);
             cfg_fade_out = GetDlgItemInt(IDC_CFG_FADE_OUT, NULL, FALSE);
             
+            CComboBox cbFmt = GetDlgItem(IDC_EXPORT_FORMAT);
+            cfg_export_format = cbFmt.GetCurSel();
+            
             CComboBox cb = GetDlgItem(IDC_TIMER_MODE);
             cfg_timer_mode = cb.GetCurSel();
             cfg_timer_custom = GetDlgItemInt(IDC_TIMER_CUSTOM, NULL, FALSE);
@@ -210,10 +235,18 @@ private:
                 else if (cfg_timer_mode.get_value() == 3) mins = cfg_timer_custom.get_value();
                 
                 g_target_quit_time.store(time(nullptr) + mins * 60);
-                console::formatter() << u8"睡眠定时器已启动，foobar2000 将在 " << mins << u8" 分钟后退出";
+                {
+                pfc::string_formatter _msg;
+                _msg << u8"睡眠定时器已启动，foobar2000 将在 " << mins << u8" 分钟后退出";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
             } else {
                 g_target_quit_time.store(0);
+                {
+                SpeakMsg(u8"睡眠定时器已关闭");
                 console::print(u8"睡眠定时器已关闭");
+            }
             }
         }
         EndDialog(nID);
@@ -366,6 +399,7 @@ public:
         cmd_reverb_reset,
         cmd_export_loop,
         cmd_global_settings,
+        cmd_read_loop_duration,
         cmd_total
     };
     
@@ -395,6 +429,7 @@ public:
             case cmd_reverb_reset: p_out = u8"重置混响"; break;
             case cmd_export_loop: p_out = u8"导出当前循环片段为 WAV..."; break;
             case cmd_global_settings: p_out = u8"全局设置..."; break;
+            case cmd_read_loop_duration: p_out = u8"播报当前循环时长"; break;
         }
     }
     
@@ -425,6 +460,7 @@ public:
         static const GUID guid_reverb_reset = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2F } };
         static const GUID guid_export_loop = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2C } };
         static const GUID guid_global_settings = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x55 } };
+        static const GUID guid_read_loop_duration = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x78 } };
         
         switch (p_index) {
             case cmd_set_start: return guid_set_start;
@@ -449,6 +485,7 @@ public:
             case cmd_reverb_reset: return guid_reverb_reset;
             case cmd_export_loop: return guid_export_loop;
             case cmd_global_settings: return guid_global_settings;
+            case cmd_read_loop_duration: return guid_read_loop_duration;
         }
         return pfc::guid_null;
     }
@@ -474,49 +511,102 @@ public:
             double time = pc->playback_get_position();
             if (p_index == cmd_set_start) {
                 g_loop_start = time;
-                console::formatter() << u8"循环起点设为 " << pfc::format_time_ex(time);
+                {
+                pfc::string_formatter _msg;
+                _msg << u8"循环起点设为 " << pfc::format_time_ex(time);
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
             } else {
                 g_loop_end = time;
-                console::formatter() << u8"循环终点设为 " << pfc::format_time_ex(time);
+                {
+                pfc::string_formatter _msg;
+                _msg << u8"循环终点设为 " << pfc::format_time_ex(time);
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
             }
             save_current_track_settings();
         } else if (p_index == cmd_loop_start_forward) {
-            if (g_loop_start >= 0.0) { g_loop_start += 0.1; save_current_track_settings(); console::formatter() << u8"循环起点微调 A+100ms"; }
+            if (g_loop_start >= 0.0) { g_loop_start += 0.1; save_current_track_settings(); {
+                SpeakMsg(u8"起点延后");
+                console::print(u8"起点延后");
+            } }
         } else if (p_index == cmd_loop_start_backward) {
-            if (g_loop_start >= 0.1) { g_loop_start -= 0.1; save_current_track_settings(); console::formatter() << u8"循环起点微调 A-100ms"; }
+            if (g_loop_start >= 0.1) { g_loop_start -= 0.1; save_current_track_settings(); {
+                SpeakMsg(u8"起点提前");
+                console::print(u8"起点提前");
+            } }
         } else if (p_index == cmd_loop_end_forward) {
-            if (g_loop_end >= 0.0) { g_loop_end += 0.1; save_current_track_settings(); console::formatter() << u8"循环终点微调 B+100ms"; }
+            if (g_loop_end >= 0.0) { g_loop_end += 0.1; save_current_track_settings(); {
+                SpeakMsg(u8"终点延后");
+                console::print(u8"终点延后");
+            } }
         } else if (p_index == cmd_loop_end_backward) {
-            if (g_loop_end >= 0.1) { g_loop_end -= 0.1; save_current_track_settings(); console::formatter() << u8"循环终点微调 B-100ms"; }
+            if (g_loop_end >= 0.1) { g_loop_end -= 0.1; save_current_track_settings(); {
+                SpeakMsg(u8"终点提前");
+                console::print(u8"终点提前");
+            } }
         } else if (p_index == cmd_clear) {
             g_loop_start = -1.0;
             g_loop_end = -1.0;
             save_current_track_settings();
-            console::print(u8"已清除循环");
+            {
+                SpeakMsg(u8"已清除循环");
+                console::print(u8"已清除循环");
+            }
         } else if (p_index == cmd_pitch_up) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() + 1.0f;
             g_pitch_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"音高偏移: " << v;
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(v, 0, 2) << u8" 半音";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_pitch_down) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() - 1.0f;
             g_pitch_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"音高偏移: " << v;
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(v, 0, 2) << u8" 半音";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_pitch_up_fine) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() + 0.1f;
             g_pitch_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"音高微调: " << v;
+            {
+                pfc::string_formatter _msg;
+                if (v > 0) {
+                    if (fmod(std::abs(v), 2.0f) == 0.0f) _msg << u8"升高" << pfc::format_float(v / 2.0f, 0, 2) << u8"全音";
+                    else _msg << u8"升高" << pfc::format_float(v, 0, 2) << u8"半音";
+                } else if (v < 0) {
+                    if (fmod(std::abs(v), 2.0f) == 0.0f) _msg << u8"降低" << pfc::format_float(std::abs(v) / 2.0f, 0, 2) << u8"全音";
+                    else _msg << u8"降低" << pfc::format_float(std::abs(v), 0, 2) << u8"半音";
+                } else {
+                    _msg << u8"原调";
+                }
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_pitch_down_fine) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() - 0.1f;
             g_pitch_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"音高微调: " << v;
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(v, 0, 2) << u8" 半音";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_pitch_reset) {
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
@@ -531,31 +621,54 @@ public:
             }
             g_pitch_offset.store(0.0f);
             save_current_track_settings();
-            console::print(u8"已重置音高偏移");
+            {
+                SpeakMsg(u8"0 半音");
+                console::print(u8"0 半音");
+            }
         } else if (p_index == cmd_tempo_up) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() + 5.0f;
             g_tempo_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"速度偏移: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(1.0f + v / 100.0f, 0, 6) << u8" 对象速率";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_tempo_down) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() - 5.0f;
             g_tempo_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"速度偏移: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(1.0f + v / 100.0f, 0, 6) << u8" 对象速率";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_tempo_up_fine) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() + 1.0f;
             g_tempo_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"速度微调: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(1.0f + v / 100.0f, 0, 6) << u8" 对象速率";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_tempo_down_fine) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() - 1.0f;
             g_tempo_offset.store(v);
             save_current_track_settings();
-            console::formatter() << u8"速度微调: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << pfc::format_float(1.0f + v / 100.0f, 0, 6) << u8" 对象速率";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_tempo_reset) {
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
@@ -570,17 +683,30 @@ public:
             }
             g_tempo_offset.store(0.0f);
             save_current_track_settings();
-            console::print(u8"已重置速度偏移");
+            {
+                SpeakMsg(u8"1 对象速率");
+                console::print(u8"1 对象速率");
+            }
         } else if (p_index == cmd_reverb_up) {
             ensure_dsp_active();
             float v = g_reverb_offset.load() + 5.0f;
             g_reverb_offset.store(v);
-            console::formatter() << u8"混响偏移: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << u8"混响" << pfc::format_float(30.0f + v, 0, 1) << "%";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_reverb_down) {
             ensure_dsp_active();
             float v = g_reverb_offset.load() - 5.0f;
             g_reverb_offset.store(v);
-            console::formatter() << u8"混响偏移: " << v << "%";
+            {
+                pfc::string_formatter _msg;
+                _msg << u8"混响" << pfc::format_float(30.0f + v, 0, 1) << "%";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            }
         } else if (p_index == cmd_reverb_reset) {
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
@@ -592,14 +718,30 @@ public:
                 dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
             }
             g_reverb_offset.store(0.0f);
-            console::print(u8"已重置混响偏移");
+            {
+                SpeakMsg(u8"已重置混响偏移");
+                console::print(u8"已重置混响偏移");
+            }
         } else if (p_index == cmd_global_settings) {
             CDialogGlobalSettings dlg;
             dlg.DoModal(core_api::get_main_window());
+        } else if (p_index == cmd_read_loop_duration) {
+            if (g_loop_start >= 0.0 && g_loop_end >= 0.0 && g_loop_end > g_loop_start) {
+                pfc::string_formatter _msg;
+                _msg << u8"循环时长 " << pfc::format_float(g_loop_end - g_loop_start, 0, 2) << u8" 秒";
+                SpeakMsg(_msg.get_ptr());
+                console::print(_msg.get_ptr());
+            } else {
+                SpeakMsg(u8"当前未设置循环");
+                console::print(u8"当前未设置循环");
+            }
         } else if (p_index == cmd_export_loop) {
             metadb_handle_ptr handle;
             if (!pc->get_now_playing(handle)) {
+                {
+                SpeakMsg(u8"没有正在播放的音轨");
                 console::print(u8"没有正在播放的音轨");
+            }
                 return;
             }
             double start = g_loop_start;
@@ -607,24 +749,28 @@ public:
             if (start < 0.0) start = 0.0;
             if (end < 0.0) end = handle->get_length();
             if (end <= start) {
+                {
+                SpeakMsg(u8"无效的循环区间");
                 console::print(u8"无效的循环区间");
+            }
                 return;
             }
             
-            CDialogExportFade dlg;
-            if (dlg.DoModal(core_api::get_main_window()) != IDOK) {
-                return;
-            }
+            double fade_in_sec = cfg_fade_in.get_value() / 1000.0;
+            double fade_out_sec = cfg_fade_out.get_value() / 1000.0;
             
-            double fade_in_sec = dlg.m_fade_in_ms / 1000.0;
-            double fade_out_sec = dlg.m_fade_out_ms / 1000.0;
+            int export_fmt = cfg_export_format.get_value();
             
-            auto export_func = [handle, start, end, fade_in_sec, fade_out_sec](const char * savePath_in) {
+            auto fd_api = fb2k::fileDialog::tryGet();
+            if (!fd_api.is_valid()) return;
+
+            auto export_func = [handle, start, end, fade_in_sec, fade_out_sec, export_fmt](const char * savePath_in, const char * image_path_in) {
                 pfc::string8 savePath = savePath_in;
-                std::thread([handle, start, end, fade_in_sec, fade_out_sec, savePath]() {
-                    try {
-                        abort_callback_dummy abort;
-                        service_ptr_t<input_decoder> dec;
+                pfc::string8 image_path = image_path_in ? image_path_in : "";
+                auto tpc = threaded_process_callback_lambda::create(
+                    [handle, start, end, fade_in_sec, fade_out_sec, savePath, export_fmt, image_path](threaded_process_status & status, abort_callback & abort) {
+                        try {
+                            service_ptr_t<input_decoder> dec;
                         input_entry::g_open_for_decoding(dec, nullptr, handle->get_path(), abort);
                         
                         dec->initialize(handle->get_subsong_index(), input_flag_no_looping | input_flag_no_seeking, abort);
@@ -654,8 +800,14 @@ public:
                         unsigned out_sample_rate = 0;
                         
                         audio_chunk_impl chunk;
+                        
+                        double duration = end - start;
+                        if (duration <= 0) duration = 1.0;
+                        status.set_item("正在解码音频...");
+                        
                         // 修正1：增加微小的误差容忍量（0.001秒），防止浮点数精度截断导致最后一块进不来
                         while (current_time < (end - 0.001) && dec->run(chunk, abort)) {
+                            status.set_progress_float((current_time - start) / duration * 0.5f);
                             double chunk_duration = (double)chunk.get_sample_count() / chunk.get_sample_rate();
                             
                             if (current_time + chunk_duration > end) {
@@ -732,47 +884,210 @@ public:
                             
                             wavWriterSetup_t setup;
                             setup.initialize(final_chunk, 16, false, true);
-                            writer.open(savePath.c_str(), setup, abort);
+                            
+                            pfc::string8 temp_wav = savePath;
+                            if (export_fmt != 0) {
+                                temp_wav += ".tmp.wav";
+                            }
+                            
+                            writer.open(temp_wav.c_str(), setup, abort);
                             writer.write(final_chunk, abort);
                             writer.finalize(abort);
+                            writer.close(); // MUST close before FFmpeg accesses it
+                            
+                            if (export_fmt != 0) {
+                                status.set_progress_float(1.0);
+                                status.set_item("正在压制中(FFmpeg)...");
+                                pfc::string8 cmd;
+                                
+                                pfc::string8 ffmpeg_temp_wav = temp_wav;
+                                if (strncmp(ffmpeg_temp_wav.get_ptr(), "file://", 7) == 0) ffmpeg_temp_wav = ffmpeg_temp_wav.get_ptr() + 7;
+                                
+                                pfc::string8 ffmpeg_savePath = savePath;
+                                if (strncmp(ffmpeg_savePath.get_ptr(), "file://", 7) == 0) ffmpeg_savePath = ffmpeg_savePath.get_ptr() + 7;
+                                
+                                pfc::string8 ffmpeg_image = image_path;
+                                if (strncmp(ffmpeg_image.get_ptr(), "file://", 7) == 0) ffmpeg_image = ffmpeg_image.get_ptr() + 7;
+                                
+                                if (export_fmt == 1) {
+                                    cmd = pfc::string_formatter() << "ffmpeg -y -i \"" << ffmpeg_temp_wav << "\" -b:a 320k \"" << ffmpeg_savePath << "\"";
+                                } else if (export_fmt == 2) {
+                                    cmd = pfc::string_formatter() << "ffmpeg -y -i \"" << ffmpeg_temp_wav << "\" -c:a flac \"" << ffmpeg_savePath << "\"";
+                                } else if (export_fmt == 3) {
+                                    cmd = pfc::string_formatter() << "ffmpeg -y -loop 1 -framerate 1 -i \"" << ffmpeg_image << "\" -i \"" << ffmpeg_temp_wav << "\" -c:v libx264 -tune stillimage -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:a aac -b:a 256k -pix_fmt yuv420p -shortest \"" << ffmpeg_savePath << "\"";
+                                }
+                                
+                                HANDLE hRead, hWrite;
+                                SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+                                if (!CreatePipe(&hRead, &hWrite, &sa, 0)) throw pfc::exception("创建输出管道失败。");
+                                SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+                                
+                                STARTUPINFOW si = { sizeof(si) };
+                                si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+                                si.wShowWindow = SW_HIDE;
+                                si.hStdOutput = hWrite;
+                                si.hStdError = hWrite;
+                                
+                                PROCESS_INFORMATION pi = { 0 };
+                                std::wstring cmdStr = pfc::stringcvt::string_wide_from_utf8(cmd).get_ptr();
+                                std::vector<wchar_t> cmdBuf(cmdStr.begin(), cmdStr.end());
+                                cmdBuf.push_back(0);
+                                
+                                if (CreateProcessW(NULL, cmdBuf.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                                    CloseHandle(hWrite);
+                                    
+                                    std::string out;
+                                    std::string line_buffer;
+                                    char buf[1024];
+                                    DWORD readBytes;
+                                    
+                                    while (true) {
+                                        if (abort.is_aborting()) {
+                                            TerminateProcess(pi.hProcess, 1);
+                                            break;
+                                        }
+                                        
+                                        DWORD bytesAvail = 0;
+                                        if (PeekNamedPipe(hRead, NULL, 0, NULL, &bytesAvail, NULL) && bytesAvail > 0) {
+                                            if (ReadFile(hRead, buf, sizeof(buf) - 1, &readBytes, NULL) && readBytes > 0) {
+                                                buf[readBytes] = '\0';
+                                                out.append(buf, readBytes);
+                                                line_buffer.append(buf, readBytes);
+                                                
+                                                size_t pos = line_buffer.find("time=");
+                                                if (pos != std::string::npos) {
+                                                    size_t end_pos = line_buffer.find(" ", pos);
+                                                    if (end_pos != std::string::npos) {
+                                                        std::string time_str = line_buffer.substr(pos + 5, end_pos - pos - 5);
+                                                        int h = 0, m = 0; float s = 0.0f;
+                                                        if (sscanf(time_str.c_str(), "%d:%d:%f", &h, &m, &s) == 3) {
+                                                            double current_sec = h * 3600.0 + m * 60.0 + s;
+                                                            double p = current_sec / duration;
+                                                            if (p > 1.0) p = 1.0;
+                                                            status.set_progress_float(0.5f + (float)p * 0.5f);
+                                                        }
+                                                        line_buffer = line_buffer.substr(end_pos);
+                                                    }
+                                                }
+                                                if (line_buffer.size() > 1024) line_buffer.clear();
+                                            }
+                                        } else {
+                                            DWORD ec = 0;
+                                            if (GetExitCodeProcess(pi.hProcess, &ec) && ec != STILL_ACTIVE) {
+                                                while (ReadFile(hRead, buf, sizeof(buf) - 1, &readBytes, NULL) && readBytes > 0) {
+                                                    buf[readBytes] = '\0';
+                                                    out.append(buf, readBytes);
+                                                }
+                                                break;
+                                            }
+                                            Sleep(20);
+                                        }
+                                    }
+                                    
+                                    CloseHandle(hRead);
+                                    
+                                    WaitForSingleObject(pi.hProcess, INFINITE);
+                                    DWORD exitCode = 0;
+                                    GetExitCodeProcess(pi.hProcess, &exitCode);
+                                    CloseHandle(pi.hProcess);
+                                    CloseHandle(pi.hThread);
+                                    
+                                    _wremove(pfc::stringcvt::string_wide_from_utf8(ffmpeg_temp_wav));
+                                    
+                                    if (abort.is_aborting()) {
+                                        throw pfc::exception("导出已取消。");
+                                    }
+                                    
+                                    if (exitCode != 0) {
+                                        pfc::string8 err_msg = pfc::string_formatter() << "FFmpeg 编码失败 (错误码: " << exitCode << ")。";
+                                        if (!out.empty()) {
+                                            pfc::string8 log_content = pfc::stringcvt::string_utf8_from_ansi(out.c_str()).get_ptr();
+                                            if (log_content.length() > 600) {
+                                                log_content = log_content.subString(log_content.length() - 600);
+                                            }
+                                            err_msg << "\n日志：\n" << log_content;
+                                        }
+                                        throw pfc::exception(err_msg.get_ptr());
+                                    }
+                                } else {
+                                    CloseHandle(hRead);
+                                    CloseHandle(hWrite);
+                                    _wremove(pfc::stringcvt::string_wide_from_utf8(ffmpeg_temp_wav));
+                                    throw pfc::exception("无法启动 FFmpeg，请检查环境变量或路径。");
+                                }
+                            }
                             
                             fb2k::inMainThread([]() {
-                                console::print(u8"片段导出完成");
+                                {
+                SpeakMsg(u8"片段导出完成");
+                console::print(u8"片段导出完成");
+            }
                             });
                         } else {
                             fb2k::inMainThread([]() {
-                                console::print(u8"片段导出失败: 没有数据");
+                                {
+                SpeakMsg(u8"片段导出失败: 没有数据");
+                console::print(u8"片段导出失败: 没有数据");
+            }
                             });
                         }
                         
                     } catch (std::exception & e) {
                         pfc::string8 msg = e.what();
                         fb2k::inMainThread([msg]() {
-                            console::formatter() << u8"导出失败: " << msg;
+                            {
+                                pfc::string_formatter _msg;
+                                _msg << u8"导出失败: " << msg;
+                                SpeakMsg(_msg.get_ptr());
+                                console::print(_msg.get_ptr());
+                                popup_message::g_show(_msg.get_ptr(), "Foo Pitch Tempo 导出失败");
+                            }
                         });
                     }
-                }).detach();
+                });
+                threaded_process::g_run_modeless(tpc, threaded_process::flag_show_progress | threaded_process::flag_show_abort | threaded_process::flag_show_item, core_api::get_main_window(), "导出片段");
             };
             
-            pfc::string8 initialName;
-            handle->format_title(nullptr, initialName, titleformat_compiler::get()->compile_force("%title% - loop"), nullptr);
-            initialName += ".wav";
-
-            auto fd_api = fb2k::fileDialog::tryGet();
-            if (fd_api.is_valid()) {
+            auto prompt_save = [export_fmt, handle, export_func, fd_api](pfc::string8 image_path) {
+                pfc::string8 initialName;
+                handle->format_title(nullptr, initialName, titleformat_compiler::get()->compile_force("%title% - exported"), nullptr);
+                
                 auto fd = fd_api->setupSave();
-                fd->setTitle("导出循环片段为 WAV");
-                fd->setFileTypes("WAV Audio Files|*.wav");
-                fd->setDefaultExtension("wav");
+                fd->setTitle("导出片段");
+                
+                if (export_fmt == 0) {
+                    fd->setFileTypes("WAV Audio Files|*.wav");
+                    fd->setDefaultExtension("wav");
+                    initialName += ".wav";
+                } else if (export_fmt == 1) {
+                    fd->setFileTypes("MP3 Audio Files|*.mp3");
+                    fd->setDefaultExtension("mp3");
+                    initialName += ".mp3";
+                } else if (export_fmt == 2) {
+                    fd->setFileTypes("FLAC Audio Files|*.flac");
+                    fd->setDefaultExtension("flac");
+                    initialName += ".flac";
+                } else if (export_fmt == 3) {
+                    fd->setFileTypes("MP4 Video Files|*.mp4");
+                    fd->setDefaultExtension("mp4");
+                    initialName += ".mp4";
+                }
+                
                 fd->setInitialValue(initialName);
-                fd->runSimple([export_func](fb2k::stringRef path) {
-                    export_func(path->c_str());
+                fd->runSimple([export_func, image_path](fb2k::stringRef path) {
+                    export_func(path->c_str(), image_path.c_str());
+                });
+            };
+            
+            if (export_fmt == 3) {
+                auto fd_img = fd_api->setupOpen();
+                fd_img->setTitle("请选择一张图片作为视频背景 (JPG/PNG)");
+                fd_img->setFileTypes("Image Files|*.jpg;*.jpeg;*.png");
+                fd_img->runSimple([prompt_save](fb2k::stringRef img_path) {
+                    prompt_save(img_path->c_str());
                 });
             } else {
-                pfc::string8 path = initialName;
-                if (uGetOpenFileName(core_api::get_main_window(), "WAV Audio Files|*.wav", 0, "wav", "导出循环片段为 WAV", nullptr, path, TRUE)) {
-                    export_func(path.c_str());
-                }
+                prompt_save("");
             }
         }
     }

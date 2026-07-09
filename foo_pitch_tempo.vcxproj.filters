@@ -19,10 +19,12 @@
     <ClCompile Include="PCH.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="dsp_bass.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="loop_shortcut.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="tolk_wrapper.cpp"><Filter>Source Files</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="resource.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="tolk_wrapper.h"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="foo_pitch_tempo.rc"><Filter>Resource Files</Filter></ResourceCompile>

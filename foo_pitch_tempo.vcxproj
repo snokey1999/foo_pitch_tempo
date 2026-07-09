@@ -375,10 +375,12 @@
     </ClCompile>
     <ClCompile Include="dsp_bass.cpp" />
     <ClCompile Include="loop_shortcut.cpp" />
+    <ClCompile Include="tolk_wrapper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="tolk_wrapper.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="foo_pitch_tempo.rc" />
