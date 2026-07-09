@@ -914,7 +914,11 @@ public:
                                 } else if (export_fmt == 2) {
                                     cmd = pfc::string_formatter() << "ffmpeg -y -i \"" << ffmpeg_temp_wav << "\" -c:a flac \"" << ffmpeg_savePath << "\"";
                                 } else if (export_fmt == 3) {
-                                    cmd = pfc::string_formatter() << "ffmpeg -y -loop 1 -framerate 1 -i \"" << ffmpeg_image << "\" -i \"" << ffmpeg_temp_wav << "\" -c:v libx264 -tune stillimage -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:a aac -b:a 256k -pix_fmt yuv420p -shortest \"" << ffmpeg_savePath << "\"";
+                                    if (ffmpeg_image.is_empty()) {
+                                        cmd = pfc::string_formatter() << "ffmpeg -y -f lavfi -i color=c=black:s=1280x720:r=1 -i \"" << ffmpeg_temp_wav << "\" -c:v libx264 -tune stillimage -c:a aac -b:a 256k -pix_fmt yuv420p -shortest \"" << ffmpeg_savePath << "\"";
+                                    } else {
+                                        cmd = pfc::string_formatter() << "ffmpeg -y -loop 1 -framerate 1 -i \"" << ffmpeg_image << "\" -i \"" << ffmpeg_temp_wav << "\" -c:v libx264 -tune stillimage -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:a aac -b:a 256k -pix_fmt yuv420p -shortest \"" << ffmpeg_savePath << "\"";
+                                    }
                                 }
                                 
                                 HANDLE hRead, hWrite;
@@ -1080,12 +1084,14 @@ public:
             };
             
             if (export_fmt == 3) {
-                auto fd_img = fd_api->setupOpen();
-                fd_img->setTitle("请选择一张图片作为视频背景 (JPG/PNG)");
-                fd_img->setFileTypes("Image Files|*.jpg;*.jpeg;*.png");
-                fd_img->runSimple([prompt_save](fb2k::stringRef img_path) {
-                    prompt_save(img_path->c_str());
-                });
+                pfc::string8 out_img;
+                if (uGetOpenFileName(core_api::get_main_window(), "Image Files|*.jpg;*.jpeg;*.png|All Files|*.*", 0, "jpg", "请选择视频背景图片 (取消则可导出纯黑视频)", nullptr, out_img, FALSE)) {
+                    prompt_save(out_img.get_ptr());
+                } else {
+                    if (uMessageBox(core_api::get_main_window(), "未选择背景图片。是否直接生成纯黑画面的视频？\n(点击“是”继续导出纯黑视频，点击“否”取消本次操作)", "导出提示", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+                        prompt_save("");
+                    }
+                }
             } else {
                 prompt_save("");
             }
