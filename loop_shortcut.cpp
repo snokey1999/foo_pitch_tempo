@@ -20,6 +20,90 @@ std::atomic<float> g_pitch_offset{0.0f};
 std::atomic<float> g_tempo_offset{0.0f};
 std::atomic<float> g_reverb_offset{0.0f};
 
+// --- Per-track Settings DB ---
+struct track_settings_t {
+    float pitch_offset = 0.0f;
+    float tempo_offset = 0.0f;
+    double loop_start = -1.0;
+    double loop_end = -1.0;
+};
+
+static const GUID guid_pitch_tempo_index = { 0x3d7b89f2, 0x1b2c, 0x4a9e, { 0x92, 0x11, 0x44, 0x82, 0x7a, 0xb8, 0xc1, 0x4f } };
+static const char strSettingsPinTo[] = "%path%|%subsong%";
+
+class metadb_index_client_impl : public metadb_index_client {
+public:
+    metadb_index_client_impl(const char* pinTo) {
+        static_api_ptr_t<titleformat_compiler>()->compile_force(m_keyObj, pinTo);
+    }
+    metadb_index_hash transform(const file_info & info, const playable_location & location) override {
+        pfc::string_formatter str;
+        m_keyObj->run_simple(location, &info, str);
+        return static_api_ptr_t<hasher_md5>()->process_single_string(str).xorHalve();
+    }
+private:
+    titleformat_object::ptr m_keyObj;
+};
+
+static metadb_index_client_impl* get_settings_client() {
+    static metadb_index_client_impl* g_client = new service_impl_single_t<metadb_index_client_impl>(strSettingsPinTo);
+    return g_client;
+}
+
+static metadb_index_manager::ptr get_index_manager() {
+    static metadb_index_manager* cached = metadb_index_manager::get().detach();
+    return cached;
+}
+
+class init_stage_callback_settings : public init_stage_callback {
+public:
+    void on_init_stage(t_uint32 stage) override {
+        if (stage == init_stages::before_config_read) {
+            auto api = get_index_manager();
+            try {
+                api->add(get_settings_client(), guid_pitch_tempo_index, system_time_periods::week * 52); // Retain for 1 year
+            } catch (std::exception const & e) {
+                api->remove(guid_pitch_tempo_index);
+                console::formatter() << "Failed to init pitch/tempo index: " << e.what();
+                return;
+            }
+            api->dispatch_global_refresh();
+        }
+    }
+};
+static service_factory_single_t<init_stage_callback_settings> g_init_stage_settings;
+
+static track_settings_t settings_get(metadb_index_hash hash) {
+    track_settings_t ret;
+    mem_block_container_impl temp;
+    get_index_manager()->get_user_data(guid_pitch_tempo_index, hash, temp);
+    if (temp.get_size() == sizeof(track_settings_t)) {
+        memcpy(&ret, temp.get_ptr(), sizeof(track_settings_t));
+    }
+    return ret;
+}
+
+static void settings_set(metadb_index_hash hash, const track_settings_t & record) {
+    get_index_manager()->set_user_data(guid_pitch_tempo_index, hash, &record, sizeof(track_settings_t));
+}
+
+static void save_current_track_settings() {
+    auto pc = playback_control::get();
+    metadb_handle_ptr handle;
+    if (pc->get_now_playing(handle)) {
+        metadb_index_hash hash;
+        if (get_settings_client()->hashHandle(handle, hash)) {
+            track_settings_t rec;
+            rec.pitch_offset = g_pitch_offset.load();
+            rec.tempo_offset = g_tempo_offset.load();
+            rec.loop_start = g_loop_start;
+            rec.loop_end = g_loop_end;
+            settings_set(hash, rec);
+        }
+    }
+}
+// -----------------------------
+
 static const GUID guid_cfg_fade_in = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x50 } };
 static cfg_int cfg_fade_in(guid_cfg_fade_in, 500);
 
@@ -201,7 +285,7 @@ private:
 class loop_callback : public play_callback_static {
 public:
     unsigned get_flags() override {
-        return flag_on_playback_time | flag_on_playback_stop | flag_on_playback_seek;
+        return flag_on_playback_time | flag_on_playback_stop | flag_on_playback_seek | flag_on_playback_new_track;
     }
     
     void on_playback_time(double p_time) override {
@@ -219,7 +303,26 @@ public:
     }
     
     void on_playback_starting(play_control::t_track_command p_command, bool p_paused) override {}
-    void on_playback_new_track(metadb_handle_ptr p_track) override {}
+    void on_playback_new_track(metadb_handle_ptr p_track) override {
+        metadb_index_hash hash;
+        if (get_settings_client()->hashHandle(p_track, hash)) {
+            track_settings_t rec = settings_get(hash);
+            g_pitch_offset.store(rec.pitch_offset);
+            g_tempo_offset.store(rec.tempo_offset);
+            g_loop_start = rec.loop_start;
+            g_loop_end = rec.loop_end;
+
+            auto dcm = dsp_config_manager::get();
+            dsp_preset_impl preset;
+            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (!dcm->core_query_dsp(guid_bass_dsp, preset) && (rec.pitch_offset != 0.0f || rec.tempo_offset != 0.0f)) {
+                float d[2] = { 0.0f, 0.0f };
+                preset.set_owner(guid_bass_dsp);
+                preset.set_data(&d, sizeof(d));
+                dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_first);
+            }
+        }
+    }
     void on_playback_stop(play_control::t_stop_reason p_reason) override {
         g_is_seeking = false;
     }
@@ -244,11 +347,19 @@ public:
         cmd_set_start = 0,
         cmd_set_end,
         cmd_clear,
+        cmd_loop_start_forward,
+        cmd_loop_start_backward,
+        cmd_loop_end_forward,
+        cmd_loop_end_backward,
         cmd_pitch_up,
         cmd_pitch_down,
+        cmd_pitch_up_fine,
+        cmd_pitch_down_fine,
         cmd_pitch_reset,
         cmd_tempo_up,
         cmd_tempo_down,
+        cmd_tempo_up_fine,
+        cmd_tempo_down_fine,
         cmd_tempo_reset,
         cmd_reverb_up,
         cmd_reverb_down,
@@ -265,11 +376,19 @@ public:
             case cmd_set_start: p_out = u8"设置循环起点 A"; break;
             case cmd_set_end: p_out = u8"设置循环终点 B"; break;
             case cmd_clear: p_out = u8"清除循环"; break;
+            case cmd_loop_start_forward: p_out = u8"循环起点 A 延后 100ms"; break;
+            case cmd_loop_start_backward: p_out = u8"循环起点 A 提前 100ms"; break;
+            case cmd_loop_end_forward: p_out = u8"循环终点 B 延后 100ms"; break;
+            case cmd_loop_end_backward: p_out = u8"循环终点 B 提前 100ms"; break;
             case cmd_pitch_up: p_out = u8"音高 +1 半音"; break;
             case cmd_pitch_down: p_out = u8"音高 -1 半音"; break;
+            case cmd_pitch_up_fine: p_out = u8"音高微调 +0.1 半音"; break;
+            case cmd_pitch_down_fine: p_out = u8"音高微调 -0.1 半音"; break;
             case cmd_pitch_reset: p_out = u8"重置音高"; break;
             case cmd_tempo_up: p_out = u8"速度 +5%"; break;
             case cmd_tempo_down: p_out = u8"速度 -5%"; break;
+            case cmd_tempo_up_fine: p_out = u8"速度微调 +1%"; break;
+            case cmd_tempo_down_fine: p_out = u8"速度微调 -1%"; break;
             case cmd_tempo_reset: p_out = u8"重置速度"; break;
             case cmd_reverb_up: p_out = u8"混响 +5%"; break;
             case cmd_reverb_down: p_out = u8"混响 -5%"; break;
@@ -287,11 +406,19 @@ public:
         static const GUID guid_set_start = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x20 } };
         static const GUID guid_set_end = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x21 } };
         static const GUID guid_clear = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x22 } };
+        static const GUID guid_loop_start_forward = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x70 } };
+        static const GUID guid_loop_start_backward = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x71 } };
+        static const GUID guid_loop_end_forward = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x72 } };
+        static const GUID guid_loop_end_backward = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x73 } };
         static const GUID guid_pitch_up = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x26 } };
         static const GUID guid_pitch_down = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x27 } };
+        static const GUID guid_pitch_up_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x74 } };
+        static const GUID guid_pitch_down_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x75 } };
         static const GUID guid_pitch_reset = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x28 } };
         static const GUID guid_tempo_up = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x29 } };
         static const GUID guid_tempo_down = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2A } };
+        static const GUID guid_tempo_up_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x76 } };
+        static const GUID guid_tempo_down_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x77 } };
         static const GUID guid_tempo_reset = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2B } };
         static const GUID guid_reverb_up = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2D } };
         static const GUID guid_reverb_down = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2E } };
@@ -303,11 +430,19 @@ public:
             case cmd_set_start: return guid_set_start;
             case cmd_set_end: return guid_set_end;
             case cmd_clear: return guid_clear;
+            case cmd_loop_start_forward: return guid_loop_start_forward;
+            case cmd_loop_start_backward: return guid_loop_start_backward;
+            case cmd_loop_end_forward: return guid_loop_end_forward;
+            case cmd_loop_end_backward: return guid_loop_end_backward;
             case cmd_pitch_up: return guid_pitch_up;
             case cmd_pitch_down: return guid_pitch_down;
+            case cmd_pitch_up_fine: return guid_pitch_up_fine;
+            case cmd_pitch_down_fine: return guid_pitch_down_fine;
             case cmd_pitch_reset: return guid_pitch_reset;
             case cmd_tempo_up: return guid_tempo_up;
             case cmd_tempo_down: return guid_tempo_down;
+            case cmd_tempo_up_fine: return guid_tempo_up_fine;
+            case cmd_tempo_down_fine: return guid_tempo_down_fine;
             case cmd_tempo_reset: return guid_tempo_reset;
             case cmd_reverb_up: return guid_reverb_up;
             case cmd_reverb_down: return guid_reverb_down;
@@ -344,20 +479,44 @@ public:
                 g_loop_end = time;
                 console::formatter() << u8"循环终点设为 " << pfc::format_time_ex(time);
             }
+            save_current_track_settings();
+        } else if (p_index == cmd_loop_start_forward) {
+            if (g_loop_start >= 0.0) { g_loop_start += 0.1; save_current_track_settings(); console::formatter() << u8"循环起点微调 A+100ms"; }
+        } else if (p_index == cmd_loop_start_backward) {
+            if (g_loop_start >= 0.1) { g_loop_start -= 0.1; save_current_track_settings(); console::formatter() << u8"循环起点微调 A-100ms"; }
+        } else if (p_index == cmd_loop_end_forward) {
+            if (g_loop_end >= 0.0) { g_loop_end += 0.1; save_current_track_settings(); console::formatter() << u8"循环终点微调 B+100ms"; }
+        } else if (p_index == cmd_loop_end_backward) {
+            if (g_loop_end >= 0.1) { g_loop_end -= 0.1; save_current_track_settings(); console::formatter() << u8"循环终点微调 B-100ms"; }
         } else if (p_index == cmd_clear) {
             g_loop_start = -1.0;
             g_loop_end = -1.0;
+            save_current_track_settings();
             console::print(u8"已清除循环");
         } else if (p_index == cmd_pitch_up) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() + 1.0f;
             g_pitch_offset.store(v);
+            save_current_track_settings();
             console::formatter() << u8"音高偏移: " << v;
         } else if (p_index == cmd_pitch_down) {
             ensure_dsp_active();
             float v = g_pitch_offset.load() - 1.0f;
             g_pitch_offset.store(v);
+            save_current_track_settings();
             console::formatter() << u8"音高偏移: " << v;
+        } else if (p_index == cmd_pitch_up_fine) {
+            ensure_dsp_active();
+            float v = g_pitch_offset.load() + 0.1f;
+            g_pitch_offset.store(v);
+            save_current_track_settings();
+            console::formatter() << u8"音高微调: " << v;
+        } else if (p_index == cmd_pitch_down_fine) {
+            ensure_dsp_active();
+            float v = g_pitch_offset.load() - 0.1f;
+            g_pitch_offset.store(v);
+            save_current_track_settings();
+            console::formatter() << u8"音高微调: " << v;
         } else if (p_index == cmd_pitch_reset) {
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
@@ -371,17 +530,32 @@ public:
                 dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
             }
             g_pitch_offset.store(0.0f);
+            save_current_track_settings();
             console::print(u8"已重置音高偏移");
         } else if (p_index == cmd_tempo_up) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() + 5.0f;
             g_tempo_offset.store(v);
+            save_current_track_settings();
             console::formatter() << u8"速度偏移: " << v << "%";
         } else if (p_index == cmd_tempo_down) {
             ensure_dsp_active();
             float v = g_tempo_offset.load() - 5.0f;
             g_tempo_offset.store(v);
+            save_current_track_settings();
             console::formatter() << u8"速度偏移: " << v << "%";
+        } else if (p_index == cmd_tempo_up_fine) {
+            ensure_dsp_active();
+            float v = g_tempo_offset.load() + 1.0f;
+            g_tempo_offset.store(v);
+            save_current_track_settings();
+            console::formatter() << u8"速度微调: " << v << "%";
+        } else if (p_index == cmd_tempo_down_fine) {
+            ensure_dsp_active();
+            float v = g_tempo_offset.load() - 1.0f;
+            g_tempo_offset.store(v);
+            save_current_track_settings();
+            console::formatter() << u8"速度微调: " << v << "%";
         } else if (p_index == cmd_tempo_reset) {
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
@@ -395,6 +569,7 @@ public:
                 dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
             }
             g_tempo_offset.store(0.0f);
+            save_current_track_settings();
             console::print(u8"已重置速度偏移");
         } else if (p_index == cmd_reverb_up) {
             ensure_dsp_active();
