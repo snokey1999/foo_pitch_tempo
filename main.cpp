@@ -1,10 +1,15 @@
 #include "stdafx.h"
 
+// Forward declaration from dsp_openal.cpp
+bool OpenAL_Init(HMODULE hComponent);
+void OpenAL_Uninit();
+
 DECLARE_COMPONENT_VERSION(
 	u8"时间魔术师 (Time Wizard)",
-	"1.2.2",
+	"1.3.0",
 	u8"一个基于bass引擎的变速变调与loop循环组件\n"
 	"Author: snokey\n"
+	"1.3.0 新增基于OpenAL的3D空间音频DSP，支持HRTF与EFX预制效果。\n"
 	"1.2.2 增强屏幕阅读器与可访问性能力。"
 );
 
@@ -36,3 +41,15 @@ public:
 };
 
 static initquit_factory_t<init_tolk> g_init_tolk;
+
+class init_openal : public initquit {
+public:
+	void on_init() override {
+		OpenAL_Init(core_api::get_my_instance());
+	}
+	void on_quit() override {
+		OpenAL_Uninit();
+	}
+};
+
+static initquit_factory_t<init_openal> g_init_openal;

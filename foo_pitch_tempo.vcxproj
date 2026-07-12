@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="15.0">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM64">
@@ -139,7 +139,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatSpecificWarningsAsErrors>4715</TreatSpecificWarningsAsErrors>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -165,7 +165,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatSpecificWarningsAsErrors>4715</TreatSpecificWarningsAsErrors>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -190,7 +190,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatSpecificWarningsAsErrors>4715</TreatSpecificWarningsAsErrors>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -214,7 +214,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatSpecificWarningsAsErrors>4715</TreatSpecificWarningsAsErrors>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -240,7 +240,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <StringPooling>true</StringPooling>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>NDEBUG;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -271,7 +271,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <StringPooling>true</StringPooling>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>NDEBUG;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -301,7 +301,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <StringPooling>true</StringPooling>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>NDEBUG;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -330,7 +330,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <StringPooling>true</StringPooling>
       <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\rj\yc\ym\c++\wtl2\WTL-master\Include;..;../..;openal/include</AdditionalIncludeDirectories>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>NDEBUG;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -374,6 +374,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="dsp_bass.cpp" />
+    <ClCompile Include="dsp_openal.cpp" />
     <ClCompile Include="loop_shortcut.cpp" />
     <ClCompile Include="tolk_wrapper.cpp" />
   </ItemGroup>

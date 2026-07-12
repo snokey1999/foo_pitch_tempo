@@ -12,6 +12,7 @@
 #include <chrono>
 #include "resource.h"
 #include "tolk_wrapper.h"
+#include "accessible_params_dlg.h"
 
 static void SpeakMsg(const char* utf8_text) {
     pfc::stringcvt::string_wide_from_utf8 wstr(utf8_text);
@@ -25,7 +26,6 @@ static double g_loop_end = -1.0;
 std::atomic<bool> g_is_seeking{false};
 std::atomic<float> g_pitch_offset{0.0f};
 std::atomic<float> g_tempo_offset{0.0f};
-std::atomic<float> g_reverb_offset{0.0f};
 
 // --- Per-track Settings DB ---
 struct track_settings_t {
@@ -394,12 +394,10 @@ public:
         cmd_tempo_up_fine,
         cmd_tempo_down_fine,
         cmd_tempo_reset,
-        cmd_reverb_up,
-        cmd_reverb_down,
-        cmd_reverb_reset,
         cmd_export_loop,
         cmd_global_settings,
         cmd_read_loop_duration,
+        cmd_accessible_params,
         cmd_total
     };
     
@@ -424,12 +422,10 @@ public:
             case cmd_tempo_up_fine: p_out = u8"速度微调 +1%"; break;
             case cmd_tempo_down_fine: p_out = u8"速度微调 -1%"; break;
             case cmd_tempo_reset: p_out = u8"重置速度"; break;
-            case cmd_reverb_up: p_out = u8"混响 +5%"; break;
-            case cmd_reverb_down: p_out = u8"混响 -5%"; break;
-            case cmd_reverb_reset: p_out = u8"重置混响"; break;
             case cmd_export_loop: p_out = u8"导出当前循环片段为 WAV..."; break;
             case cmd_global_settings: p_out = u8"全局设置..."; break;
             case cmd_read_loop_duration: p_out = u8"播报当前循环时长"; break;
+            case cmd_accessible_params: p_out = u8"参数选项..."; break;
         }
     }
     
@@ -455,12 +451,10 @@ public:
         static const GUID guid_tempo_up_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x76 } };
         static const GUID guid_tempo_down_fine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x77 } };
         static const GUID guid_tempo_reset = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2B } };
-        static const GUID guid_reverb_up = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2D } };
-        static const GUID guid_reverb_down = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2E } };
-        static const GUID guid_reverb_reset = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2F } };
         static const GUID guid_export_loop = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x2C } };
         static const GUID guid_global_settings = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x55 } };
         static const GUID guid_read_loop_duration = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x78 } };
+        static const GUID guid_accessible_params = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x79 } };
         
         switch (p_index) {
             case cmd_set_start: return guid_set_start;
@@ -480,12 +474,10 @@ public:
             case cmd_tempo_up_fine: return guid_tempo_up_fine;
             case cmd_tempo_down_fine: return guid_tempo_down_fine;
             case cmd_tempo_reset: return guid_tempo_reset;
-            case cmd_reverb_up: return guid_reverb_up;
-            case cmd_reverb_down: return guid_reverb_down;
-            case cmd_reverb_reset: return guid_reverb_reset;
             case cmd_export_loop: return guid_export_loop;
             case cmd_global_settings: return guid_global_settings;
             case cmd_read_loop_duration: return guid_read_loop_duration;
+            case cmd_accessible_params: return guid_accessible_params;
         }
         return pfc::guid_null;
     }
@@ -687,43 +679,12 @@ public:
                 SpeakMsg(u8"1 对象速率");
                 console::print(u8"1 对象速率");
             }
-        } else if (p_index == cmd_reverb_up) {
-            ensure_dsp_active();
-            float v = g_reverb_offset.load() + 5.0f;
-            g_reverb_offset.store(v);
-            {
-                pfc::string_formatter _msg;
-                _msg << u8"混响" << pfc::format_float(30.0f + v, 0, 1) << "%";
-                SpeakMsg(_msg.get_ptr());
-                console::print(_msg.get_ptr());
-            }
-        } else if (p_index == cmd_reverb_down) {
-            ensure_dsp_active();
-            float v = g_reverb_offset.load() - 5.0f;
-            g_reverb_offset.store(v);
-            {
-                pfc::string_formatter _msg;
-                _msg << u8"混响" << pfc::format_float(30.0f + v, 0, 1) << "%";
-                SpeakMsg(_msg.get_ptr());
-                console::print(_msg.get_ptr());
-            }
-        } else if (p_index == cmd_reverb_reset) {
-            ensure_dsp_active();
-            auto dcm = dsp_config_manager::get();
-            dsp_preset_impl preset;
-            static const GUID guid_reverb_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x30 } };
-            if (dcm->core_query_dsp(guid_reverb_dsp, preset)) {
-                float d[1] = { 30.0f };
-                preset.set_data(&d, sizeof(d));
-                dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_last);
-            }
-            g_reverb_offset.store(0.0f);
-            {
-                SpeakMsg(u8"已重置混响偏移");
-                console::print(u8"已重置混响偏移");
-            }
         } else if (p_index == cmd_global_settings) {
             CDialogGlobalSettings dlg;
+            dlg.DoModal(core_api::get_main_window());
+        } else if (p_index == cmd_accessible_params) {
+            ensure_dsp_active();
+            CAccessibleParamsDialog dlg;
             dlg.DoModal(core_api::get_main_window());
         } else if (p_index == cmd_read_loop_duration) {
             if (g_loop_start >= 0.0 && g_loop_end >= 0.0 && g_loop_end > g_loop_start) {

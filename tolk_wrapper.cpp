@@ -46,9 +46,6 @@ void TolkWrapper_Init(HMODULE hComponent) {
 }
 
 void TolkWrapper_Uninit() {
-    // Do not call g_Tolk_Unload() or FreeLibrary here.
-    // Calling Tolk_Unload() during process termination causes deadlocks with SAPI/NVDA COM threads.
-    // The OS will cleanly reclaim these resources upon exit.
     g_hTolkModule = nullptr;
 }
 
