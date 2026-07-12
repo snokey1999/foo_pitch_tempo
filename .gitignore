@@ -12,3 +12,6 @@ package/
 Release FB2K/
 UpgradeLog*.htm
 Backup/
+*.dll
+*.exe
+*.dll.a
