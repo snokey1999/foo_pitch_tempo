@@ -7,9 +7,6 @@
 #include <foobar2000/SDK/foobar2000.h>
 #include <foobar2000/helpers/helpers.h>
 
-#include "bass.h"
-#include "bass_fx.h"
-
 #ifdef _WIN64
 // BASS libraries removed in favor of RubberBand
 #endif
