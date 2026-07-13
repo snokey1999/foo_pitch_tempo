@@ -54,7 +54,23 @@ function Pack-Component {
         Write-Host "  复制 soft_oal.dll -> openal/ ..."
         Copy-Item $OpenALDll (Join-Path $oalDest "soft_oal.dll")
     } else {
-        Write-Host "  [警告] 未找? OpenAL DLL: $OpenALDll" -ForegroundColor DarkYellow
+        Write-Host "  [警告] 未找到 OpenAL DLL: $OpenALDll" -ForegroundColor DarkYellow
+    }
+    
+    $bassDll = Join-Path $projectDir "bass_$Arch.dll"
+    if (Test-Path $bassDll) {
+        Write-Host "  复制 bass.dll ($Arch) ..."
+        Copy-Item $bassDll (Join-Path $stagingDir "bass.dll")
+    } else {
+        Write-Host "  [警告] 未找到 $bassDll" -ForegroundColor DarkYellow
+    }
+    
+    $bassFxDll = Join-Path $projectDir "bass_fx_$Arch.dll"
+    if (Test-Path $bassFxDll) {
+        Write-Host "  复制 bass_fx.dll ($Arch) ..."
+        Copy-Item $bassFxDll (Join-Path $stagingDir "bass_fx.dll")
+    } else {
+        Write-Host "  [警告] 未找到 $bassFxDll" -ForegroundColor DarkYellow
     }
     Write-Host "  创建 $OutputPath ..."
     if (Test-Path $OutputPath) { Remove-Item $OutputPath -Force }

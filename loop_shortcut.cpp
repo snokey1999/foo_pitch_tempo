@@ -132,7 +132,10 @@ static const GUID guid_cfg_timer_custom = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 
 static cfg_int cfg_timer_custom(guid_cfg_timer_custom, 120);
 
 const GUID guid_cfg_pitch_algo = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x58 } };
-cfg_int cfg_pitch_algo(guid_cfg_pitch_algo, 1); // 0=快速(R2), 1=极佳(R3默认), 2=一致(R3高一致性), 3=人声(R3保留共振峰)
+cfg_int cfg_pitch_algo(guid_cfg_pitch_algo, 1); // 算法索引
+
+const GUID guid_cfg_dsp_engine = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x59 } };
+cfg_int cfg_dsp_engine(guid_cfg_dsp_engine, 0); // 0=BASS, 1=RubberBand
 
 static std::atomic<bool> g_timer_running{false};
 static std::atomic<time_t> g_target_quit_time{0};
@@ -147,6 +150,7 @@ public:
         COMMAND_ID_HANDLER_EX(IDCANCEL, OnCloseCmd)
         COMMAND_HANDLER_EX(IDC_TIMER_MODE, CBN_SELCHANGE, OnModeChange)
         COMMAND_HANDLER_EX(IDC_TIMER_ENABLE, BN_CLICKED, OnTimerEnableChange)
+        COMMAND_HANDLER_EX(IDC_DSP_ENGINE, CBN_SELCHANGE, OnEngineChange)
     END_MSG_MAP()
 
 private:
@@ -181,14 +185,45 @@ private:
             GetDlgItem(IDC_TIMER_CUSTOM).ShowWindow((cfg_timer_mode.get_value() == 3) ? SW_SHOW : SW_HIDE);
         }
         
-        CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
-        cbAlgo.AddString(L"快速模式 (R2 引擎 - 低 CPU 占用，适合打击乐)");
-        cbAlgo.AddString(L"极佳模式 (R3 引擎 - 默认极高品质，高 CPU 占用)");
-        cbAlgo.AddString(L"一致模式 (R3 引擎 - 强化音高一致性)");
-        cbAlgo.AddString(L"人声模式 (R3 引擎 - 强化共振峰保留)");
-        cbAlgo.SetCurSel(cfg_pitch_algo.get_value());
+        CComboBox cbEngine = GetDlgItem(IDC_DSP_ENGINE);
+        cbEngine.AddString(L"BASS 引擎 (低延迟, 原版)");
+        cbEngine.AddString(L"RubberBand 引擎 (高音质, 较耗CPU)");
+        cbEngine.SetCurSel(cfg_dsp_engine.get_value());
+        
+        UpdateAlgoList();
         
         return TRUE;
+    }
+    
+    void UpdateAlgoList() {
+        CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
+        int oldSel = cbAlgo.GetCurSel();
+        if (oldSel < 0) oldSel = cfg_pitch_algo.get_value();
+        
+        cbAlgo.ResetContent();
+        
+        CComboBox cbEngine = GetDlgItem(IDC_DSP_ENGINE);
+        int engine = cbEngine.GetCurSel();
+        if (engine == 0) {
+            // BASS
+            cbAlgo.AddString(L"线性模式 (Linear - 快速但音质一般)");
+            cbAlgo.AddString(L"三次插值 (Cubic - 默认)");
+            cbAlgo.AddString(L"高精度插值 (Cubic 禁用快进算法)");
+            cbAlgo.AddString(L"香农插值 (Shannon - 最高品质)");
+        } else {
+            // RubberBand
+            cbAlgo.AddString(L"快速模式 (R2 引擎 - 适合打击乐)");
+            cbAlgo.AddString(L"极佳模式 (R3 引擎 - 默认高品质)");
+            cbAlgo.AddString(L"一致模式 (R3 引擎 - 强化音高一致性)");
+            cbAlgo.AddString(L"人声模式 (R3 引擎 - 强化共振峰保留)");
+        }
+        
+        if (oldSel >= cbAlgo.GetCount()) oldSel = 0;
+        cbAlgo.SetCurSel(oldSel);
+    }
+    
+    void OnEngineChange(UINT uNotifyCode, int nID, CWindow wndCtl) {
+        UpdateAlgoList();
     }
     
     void OnModeChange(UINT uNotifyCode, int nID, CWindow wndCtl) {
@@ -224,6 +259,9 @@ private:
             
             CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
             cfg_pitch_algo = cbAlgo.GetCurSel();
+            
+            CComboBox cbEngine = GetDlgItem(IDC_DSP_ENGINE);
+            cfg_dsp_engine = cbEngine.GetCurSel();
             
             bool enable = (IsDlgButtonChecked(IDC_TIMER_ENABLE) == BST_CHECKED);
             g_timer_running.store(enable);

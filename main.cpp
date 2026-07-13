@@ -15,7 +15,18 @@ DECLARE_COMPONENT_VERSION(
 
 VALIDATE_COMPONENT_FILENAME("foo_pitch_tempo.dll");
 
+class init_bass : public initquit {
+public:
+	void on_init() override {
+		// Initialize BASS with "no sound" device for DSP
+		BASS_Init(0, 44100, 0, 0, NULL);
+	}
+	void on_quit() override {
+		BASS_Free();
+	}
+};
 
+static initquit_factory_t<init_bass> g_init_bass;
 
 #include "tolk_wrapper.h"
 
