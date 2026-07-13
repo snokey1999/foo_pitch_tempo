@@ -9,7 +9,7 @@ DECLARE_COMPONENT_VERSION(
 	"1.3.0",
 	u8"一个基于RubberBand引擎的高质量变速变调与loop循环组件\n"
 	"Author: snokey\n"
-	"1.3.0 替换底层变速变调算法为 RubberBand；新增基于 Essentia 的调性检测与主菜单集成；新增 OpenAL 3D 空间音频 DSP。\n"
+	"1.3.0 替换底层变速变调算法为 RubberBand；新增基于色度图分析的改进型调性检测与主菜单集成；新增 OpenAL 3D 空间音频 DSP。\n"
 	"1.2.2 增强屏幕阅读器与可访问性能力。"
 );
 
