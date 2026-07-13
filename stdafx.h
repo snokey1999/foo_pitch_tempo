@@ -11,11 +11,7 @@
 #include "bass_fx.h"
 
 #ifdef _WIN64
-#pragma comment(lib, "bass_x64.lib")
-#pragma comment(lib, "bass_fx_x64.lib")
-#else
-#pragma comment(lib, "bass_x86.lib")
-#pragma comment(lib, "bass_fx_x86.lib")
+// BASS libraries removed in favor of RubberBand
 #endif
 
 #include "resource.h"

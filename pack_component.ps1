@@ -1,6 +1,4 @@
 param(
-    [string]$BassDir = "D:\rj\yc\ym\c++\fb2000\bass",
-    [string]$BassFxDir = "D:\rj\yc\ym\c++\fb2000\bass_fx"
 )
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -25,7 +23,7 @@ function Pack-Component {
     )
     Write-Host "正在打包 $Arch ..." -ForegroundColor Yellow
     if (-not (Test-Path $DllPath)) {
-        Write-Host "  [跳过] 未找�?$Arch 编译结果: $DllPath" -ForegroundColor Red
+        Write-Host "  [跳过] 未找? $Arch 编译结果: $DllPath" -ForegroundColor Red
         return
     }
     $stagingDir = Join-Path $projectDir "_staging_$Arch"
@@ -33,20 +31,7 @@ function Pack-Component {
     New-Item -ItemType Directory -Path $stagingDir | Out-Null
     Write-Host "  复制 foo_pitch_tempo.dll ..."
     Copy-Item $DllPath (Join-Path $stagingDir "foo_pitch_tempo.dll")
-    $bassDll = if ($Arch -eq "x64") { Join-Path $BassDir "x64\bass.dll" } else { Join-Path $BassDir "bass.dll" }
-    $bassFxDll = if ($Arch -eq "x64") { Join-Path $BassFxDir "x64\bass_fx.dll" } else { Join-Path $BassFxDir "bass_fx.dll" }
-    if (Test-Path $bassDll) {
-        Write-Host "  复制 bass.dll ($Arch) ..."
-        Copy-Item $bassDll (Join-Path $stagingDir "bass.dll")
-    } else {
-        Write-Host "  [警告] 未找�?bass.dll ($bassDll)" -ForegroundColor DarkYellow
-    }
-    if (Test-Path $bassFxDll) {
-        Write-Host "  复制 bass_fx.dll ($Arch) ..."
-        Copy-Item $bassFxDll (Join-Path $stagingDir "bass_fx.dll")
-    } else {
-        Write-Host "  [警告] 未找�?bass_fx.dll ($bassFxDll)" -ForegroundColor DarkYellow
-    }
+    
     if (Test-Path $TolkSourceDir) {
         $tolkDest = Join-Path $stagingDir "tolk"
         Write-Host "  复制 Tolk ($TolkSourceDir -> tolk/) ..."
@@ -61,7 +46,7 @@ function Pack-Component {
             Copy-Item $_.FullName (Join-Path $tolkDest $_.Name)
         }
     } else {
-        Write-Host "  [警告] 未找�?Tolk 目录: $TolkSourceDir" -ForegroundColor DarkYellow
+        Write-Host "  [警告] 未找? Tolk 目录: $TolkSourceDir" -ForegroundColor DarkYellow
     }
     if (Test-Path $OpenALDll) {
         $oalDest = Join-Path $stagingDir "openal"
@@ -69,7 +54,7 @@ function Pack-Component {
         Write-Host "  复制 soft_oal.dll -> openal/ ..."
         Copy-Item $OpenALDll (Join-Path $oalDest "soft_oal.dll")
     } else {
-        Write-Host "  [警告] 未找�?OpenAL DLL: $OpenALDll" -ForegroundColor DarkYellow
+        Write-Host "  [警告] 未找? OpenAL DLL: $OpenALDll" -ForegroundColor DarkYellow
     }
     Write-Host "  创建 $OutputPath ..."
     if (Test-Path $OutputPath) { Remove-Item $OutputPath -Force }
@@ -79,7 +64,7 @@ function Pack-Component {
     Remove-Item $stagingDir -Recurse -Force
     $size = (Get-Item $OutputPath).Length
     Write-Host "  完成! 大小: $([math]::Round($size / 1024)) KB" -ForegroundColor Green
-    Write-Host "  包内�?" -ForegroundColor DarkGray
+    Write-Host "  包内? " -ForegroundColor DarkGray
     Copy-Item $OutputPath ($OutputPath + ".verify.zip") -Force
     $verifyDir = Join-Path $projectDir "_verify_$Arch"
     if (Test-Path $verifyDir) { Remove-Item $verifyDir -Recurse -Force }

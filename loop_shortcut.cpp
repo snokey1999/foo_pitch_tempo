@@ -132,7 +132,7 @@ static const GUID guid_cfg_timer_custom = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 
 static cfg_int cfg_timer_custom(guid_cfg_timer_custom, 120);
 
 const GUID guid_cfg_pitch_algo = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x58 } };
-cfg_int cfg_pitch_algo(guid_cfg_pitch_algo, 2); // 0=极速 (Linear), 1=快速 (Quick Cubic), 2=标准 (Cubic), 3=极佳 (Shannon)
+cfg_int cfg_pitch_algo(guid_cfg_pitch_algo, 1); // 0=快速(R2), 1=极佳(R3默认), 2=一致(R3高一致性), 3=人声(R3保留共振峰)
 
 static std::atomic<bool> g_timer_running{false};
 static std::atomic<time_t> g_target_quit_time{0};
@@ -182,10 +182,10 @@ private:
         }
         
         CComboBox cbAlgo = GetDlgItem(IDC_PITCH_ALGO);
-        cbAlgo.AddString(L"极速模式 (线性插值 - 极低 CPU 占用)");
-        cbAlgo.AddString(L"快速模式 (快速三次插值 - 较低 CPU 占用)");
-        cbAlgo.AddString(L"标准模式 (三次插值 - 普通品质)");
-        cbAlgo.AddString(L"极佳模式 (香农插值 - 极高品质 / 高 CPU 占用)");
+        cbAlgo.AddString(L"快速模式 (R2 引擎 - 低 CPU 占用，适合打击乐)");
+        cbAlgo.AddString(L"极佳模式 (R3 引擎 - 默认极高品质，高 CPU 占用)");
+        cbAlgo.AddString(L"一致模式 (R3 引擎 - 强化音高一致性)");
+        cbAlgo.AddString(L"人声模式 (R3 引擎 - 强化共振峰保留)");
         cbAlgo.SetCurSel(cfg_pitch_algo.get_value());
         
         return TRUE;
@@ -347,10 +347,10 @@ public:
 
             auto dcm = dsp_config_manager::get();
             dsp_preset_impl preset;
-            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
-            if (!dcm->core_query_dsp(guid_bass_dsp, preset) && (rec.pitch_offset != 0.0f || rec.tempo_offset != 0.0f)) {
+            static const GUID guid_pitch_tempo_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (!dcm->core_query_dsp(guid_pitch_tempo_dsp, preset) && (rec.pitch_offset != 0.0f || rec.tempo_offset != 0.0f)) {
                 float d[2] = { 0.0f, 0.0f };
-                preset.set_owner(guid_bass_dsp);
+                preset.set_owner(guid_pitch_tempo_dsp);
                 preset.set_data(&d, sizeof(d));
                 dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_first);
             }
@@ -371,7 +371,7 @@ public:
 
 static play_callback_static_factory_t<loop_callback> g_loop_callback_factory;
 
-static const GUID guid_loop_group = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x25 } };
+extern const GUID guid_loop_group = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x25 } };
 static mainmenu_group_popup_factory g_loop_group(guid_loop_group, mainmenu_groups::playback, mainmenu_commands::sort_priority_dontcare, u8"变速变调与循环");
 
 class loop_shortcuts : public mainmenu_commands {
@@ -487,10 +487,10 @@ public:
     void ensure_dsp_active() {
         auto dcm = dsp_config_manager::get();
         dsp_preset_impl preset;
-        static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
-        if (!dcm->core_query_dsp(guid_bass_dsp, preset)) {
+        static const GUID guid_pitch_tempo_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+        if (!dcm->core_query_dsp(guid_pitch_tempo_dsp, preset)) {
             float d[2] = { 0.0f, 0.0f };
-            preset.set_owner(guid_bass_dsp);
+            preset.set_owner(guid_pitch_tempo_dsp);
             preset.set_data(&d, sizeof(d));
             dcm->core_enable_dsp(preset, dsp_config_manager::default_insert_first);
         }
@@ -603,8 +603,8 @@ public:
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
             dsp_preset_impl preset;
-            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
-            if (dcm->core_query_dsp(guid_bass_dsp, preset)) {
+            static const GUID guid_pitch_tempo_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (dcm->core_query_dsp(guid_pitch_tempo_dsp, preset)) {
                 float tempo = 0.0f;
                 if (preset.get_data_size() == sizeof(float) * 2) tempo = ((const float*)preset.get_data())[1];
                 float d[2] = { 0.0f, tempo };
@@ -665,8 +665,8 @@ public:
             ensure_dsp_active();
             auto dcm = dsp_config_manager::get();
             dsp_preset_impl preset;
-            static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
-            if (dcm->core_query_dsp(guid_bass_dsp, preset)) {
+            static const GUID guid_pitch_tempo_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+            if (dcm->core_query_dsp(guid_pitch_tempo_dsp, preset)) {
                 float pitch = 0.0f;
                 if (preset.get_data_size() == sizeof(float) * 2) pitch = ((const float*)preset.get_data())[0];
                 float d[2] = { pitch, 0.0f };
@@ -737,9 +737,9 @@ public:
                         dec->initialize(handle->get_subsong_index(), input_flag_no_looping | input_flag_no_seeking, abort);
                         
                         dsp_preset_impl preset;
-                        static const GUID guid_bass_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
+                        static const GUID guid_pitch_tempo_dsp = { 0x85fbfd09, 0x0099, 0x4fe9, { 0x9d, 0xb6, 0x78, 0xdb, 0x6f, 0x60, 0xf8, 0x18 } };
                         float d[2] = { 0.0f, 0.0f };
-                        preset.set_owner(guid_bass_dsp);
+                        preset.set_owner(guid_pitch_tempo_dsp);
                         preset.set_data(&d, sizeof(d));
                         
                         dsp::ptr my_dsp;
