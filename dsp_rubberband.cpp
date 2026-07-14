@@ -150,9 +150,12 @@ public:
     }
 
     void reset() override {
-        if (m_fx_stream) BASS_StreamFree(m_fx_stream);
-        m_push_stream = 0;
-        m_fx_stream = 0;
+        if (m_fx_stream) {
+            BASS_ChannelSetPosition(m_fx_stream, 0, BASS_POS_BYTE);
+        }
+        if (m_push_stream) {
+            BASS_ChannelSetPosition(m_push_stream, 0, BASS_POS_BYTE);
+        }
     }
 
     double get_latency(unsigned sample_rate) override { return 0; }
@@ -207,17 +210,25 @@ public:
         size_t frames = chunk->get_sample_count();
         const audio_sample* data_in = chunk->get_data();
         
-        for (size_t c = 0; c < m_channels; ++c) {
-            m_deinterleaved_in[c].resize(frames);
-            m_in_ptrs[c] = m_deinterleaved_in[c].data();
-            for (size_t i = 0; i < frames; ++i) {
-                m_deinterleaved_in[c][i] = data_in[i * m_channels + c];
-            }
-        }
-
-        m_stretcher->process(m_in_ptrs.data(), frames, false);
         accum.clear();
-        retrieve_available_frames(accum);
+        const size_t MAX_BLOCK = 2048;
+        
+        for (size_t offset = 0; offset < frames; offset += MAX_BLOCK) {
+            abort.check();
+            size_t block_frames = frames - offset;
+            if (block_frames > MAX_BLOCK) block_frames = MAX_BLOCK;
+            
+            for (size_t c = 0; c < m_channels; ++c) {
+                m_deinterleaved_in[c].resize(block_frames);
+                m_in_ptrs[c] = m_deinterleaved_in[c].data();
+                for (size_t i = 0; i < block_frames; ++i) {
+                    m_deinterleaved_in[c][i] = data_in[(offset + i) * m_channels + c];
+                }
+            }
+
+            m_stretcher->process(m_in_ptrs.data(), block_frames, false);
+            retrieve_available_frames(accum);
+        }
     }
 
     void drain(std::vector<audio_sample> & accum, abort_callback & abort) override {
